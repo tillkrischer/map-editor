@@ -1,18 +1,17 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 type RGB = [number, number, number];
-type Palette = RGB[] // 16 entries
+type Palette = RGB[]; // 16 entries
 type Tile = number[]; // 64 entries, each 0-15
 
 export function App() {
   const [palettes, setPalettes] = useState<Palette[]>([]);
   const [tiles, setTiles] = useState<Tile[]>([]);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   return (
     <div className="w-screen h-screen flex divide-x divide-gray-200">
       <div className="flex-1 h-full">
-        <canvas ref={canvasRef} className="border-2 border-red-500" />
+        <MainCanvas />
       </div>
       <div className="w-[550px] h-full">
         <Sidebar
@@ -22,6 +21,21 @@ export function App() {
           setTiles={setTiles}
         />
       </div>
+    </div>
+  );
+}
+
+function MainCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  return (
+    <div className="w-full flex justify-center pt-4">
+    <canvas
+      ref={canvasRef}
+      className="border-2 border-red-500"
+      height={512}
+      width={512}
+    />
     </div>
   );
 }
@@ -53,13 +67,11 @@ function Tiles(props: { tiles: Tile[]; palettes: Palette[] }) {
   const height = Math.ceil(tiles.length / 32) * 8 * magnification;
 
   const [selectedPaletteIndex, setSelectedPaletteIndex] = useState(0);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = document.getElementById(
-      "tile-canvas",
-    ) as HTMLCanvasElement | null;
     if (selectedPaletteIndex >= palettes.length) return;
-    drawTiles(canvas, palettes[selectedPaletteIndex], tiles, magnification);
+    drawTiles(canvasRef.current, palettes[selectedPaletteIndex], tiles, magnification);
   }, [palettes, selectedPaletteIndex, tiles]);
 
   return (
@@ -79,7 +91,7 @@ function Tiles(props: { tiles: Tile[]; palettes: Palette[] }) {
         />
       </div>
       <canvas
-        id="tile-canvas"
+        ref={canvasRef}
         className="my-2"
         style={{ width }}
         width={width}
@@ -214,11 +226,10 @@ function Palette(props: { palettes: Palette[] }) {
   const height = palettes.length * BLOCK_SIZE + palettes.length + 1;
   const width = 16 * BLOCK_SIZE + 17;
 
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   useEffect(() => {
-    const canvas = document.getElementById(
-      "palette-canvas",
-    ) as HTMLCanvasElement | null;
-    drawPalette(canvas, palettes, BLOCK_SIZE);
+    drawPalette(canvasRef.current, palettes, BLOCK_SIZE);
   }, [palettes, BLOCK_SIZE]);
 
   if (palettes.length === 0) {
@@ -229,7 +240,7 @@ function Palette(props: { palettes: Palette[] }) {
     <div className="w-full flex flex-col">
       {JSON.stringify(palettes.length)} palettes loaded
       <canvas
-        id="palette-canvas"
+        ref={canvasRef}
         style={{ width }}
         width={width}
         height={height}
