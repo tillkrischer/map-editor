@@ -3,15 +3,32 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 type RGB = [number, number, number];
 type Palette = RGB[]; // 16 entries
 type Tile = number[]; // 64 entries, each 0-15
+type TileMapEntry = {
+  tileIndex: number;
+  horizontalFlip: boolean;
+  verticalFlip: boolean;
+  paletteIndex: number;
+};
+type TileMap = TileMapEntry[][]; // 32x32 entries
 
 export function App() {
   const [palettes, setPalettes] = useState<Palette[]>([]);
   const [tiles, setTiles] = useState<Tile[]>([]);
+  const [tileMap, setTileMap] = useState<TileMap>(
+    new Array(32).fill(0).map(() =>
+      new Array(32).fill({
+        tileIndex: 1,
+        horizontalFlip: false,
+        verticalFlip: false,
+        paletteIndex: 0,
+      }),
+    ),
+  );
 
   return (
     <div className="w-screen h-screen flex divide-x divide-gray-200">
       <div className="flex-1 h-full">
-        <MainCanvas />
+        <MainCanvas palettes={palettes} tiles={tiles} tileMap={tileMap} />
       </div>
       <div className="w-[550px] h-full">
         <Sidebar
@@ -25,19 +42,69 @@ export function App() {
   );
 }
 
-function MainCanvas() {
+function MainCanvas(props: {
+  palettes: Palette[];
+  tiles: Tile[];
+  tileMap: TileMap;
+}) {
+  const { palettes, tiles, tileMap } = props;
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    drawTileMap(canvasRef.current, palettes, tiles, tileMap);
+  }, [palettes, tileMap, tiles]);
 
   return (
     <div className="w-full flex justify-center pt-4">
-    <canvas
-      ref={canvasRef}
-      className="border-2 border-red-500"
-      height={512}
-      width={512}
-    />
+      <canvas
+        ref={canvasRef}
+        className="border-2 border-red-500"
+        height={512}
+        width={512}
+      />
     </div>
   );
+}
+
+function drawTileMap(
+  canvas: HTMLCanvasElement | null,
+  palettes: Palette[],
+  tiles: Tile[],
+  tileMap: TileMap,
+  magnification = 2,
+) {
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let ty = 0; ty < 32; ty++) {
+    for (let tx = 0; tx < 32; tx++) {
+      const entry = tileMap[ty][tx];
+      const tile = tiles[entry.tileIndex];
+      const palette = palettes[entry.paletteIndex];
+      if (!tile || !palette) continue;
+
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+          const sx = entry.horizontalFlip ? 7 - x : x;
+          const sy = entry.verticalFlip ? 7 - y : y;
+          const colorIndex = tile[sy * 8 + sx];
+          const [r, g, b] = palette[colorIndex];
+          ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+          ctx.fillRect(
+            tx * 8 * magnification + x * magnification,
+            ty * 8 * magnification + y * magnification,
+            magnification,
+            magnification,
+          );
+        }
+      }
+    }
+  }
 }
 
 function Sidebar(props: {
@@ -71,7 +138,12 @@ function Tiles(props: { tiles: Tile[]; palettes: Palette[] }) {
 
   useEffect(() => {
     if (selectedPaletteIndex >= palettes.length) return;
-    drawTiles(canvasRef.current, palettes[selectedPaletteIndex], tiles, magnification);
+    drawTiles(
+      canvasRef.current,
+      palettes[selectedPaletteIndex],
+      tiles,
+      magnification,
+    );
   }, [palettes, selectedPaletteIndex, tiles]);
 
   return (
@@ -239,12 +311,7 @@ function Palette(props: { palettes: Palette[] }) {
   return (
     <div className="w-full flex flex-col">
       {JSON.stringify(palettes.length)} palettes loaded
-      <canvas
-        ref={canvasRef}
-        style={{ width }}
-        width={width}
-        height={height}
-      />
+      <canvas ref={canvasRef} style={{ width }} width={width} height={height} />
     </div>
   );
 }
