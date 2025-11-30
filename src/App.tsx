@@ -1,71 +1,22 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-
-type RGB = [number, number, number];
-type Palette = RGB[]; // 16 entries
-type Tile = number[]; // 64 entries, each 0-15
-type TileMapEntry = {
-  tileIndex: number;
-  horizontalFlip: boolean;
-  verticalFlip: boolean;
-  paletteIndex: number;
-};
-type TileMap = TileMapEntry[][]; // 32x32 entries
+import { useMapEditor } from "./useMapEditor";
+import type { Palette, Tile, TileMap } from "./useMapEditor";
 
 export function App() {
-  const [palettes, setPalettes] = useState<Palette[]>([]);
-  const [tiles, setTiles] = useState<Tile[]>([]);
-  const [tileMap] = useState<TileMap>(
-    new Array(32).fill(0).map(() =>
-      new Array(32).fill({
-        tileIndex: 1,
-        horizontalFlip: false,
-        verticalFlip: false,
-        paletteIndex: 0,
-      }),
-    ),
-  );
-  const [currentTileCoords, setCurrentTileCoords] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
-
-  const currentTileEntry =
-    currentTileCoords !== null
-      ? tileMap[currentTileCoords.y][currentTileCoords.x]
-      : null;
-
   return (
     <div className="w-screen h-screen flex divide-x divide-gray-200">
       <div className="flex-1 h-full">
-        <MainCanvas
-          palettes={palettes}
-          tiles={tiles}
-          tileMap={tileMap}
-          onTileClick={setCurrentTileCoords}
-        />
+        <MainCanvas />
       </div>
       <div className="w-[596px] h-full overflow-y-auto">
-        <Sidebar
-          palettes={palettes}
-          setPalettes={setPalettes}
-          tiles={tiles}
-          setTiles={setTiles}
-          currentTileEntry={currentTileEntry}
-          currentTileCoords={currentTileCoords}
-        />
+        <Sidebar />
       </div>
     </div>
   );
 }
 
-function MainCanvas(props: {
-  palettes: Palette[];
-  tiles: Tile[];
-  tileMap: TileMap;
-  onTileClick: (coords: { x: number; y: number }) => void;
-}) {
-  const { palettes, tiles, tileMap, onTileClick } = props;
-
+function MainCanvas() {
+  const { palettes, tiles, tileMap, setCurrentTileCoords } = useMapEditor();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -87,7 +38,7 @@ function MainCanvas(props: {
     const tileY = Math.floor(y / (8 * magnification));
 
     if (tileX >= 0 && tileX < 32 && tileY >= 0 && tileY < 32) {
-      onTileClick({ x: tileX, y: tileY });
+      setCurrentTileCoords({ x: tileX, y: tileY });
     }
   };
 
@@ -144,13 +95,8 @@ function drawTileMap(
   }
 }
 
-function CurrentTileContainer(props: {
-  tileEntry: TileMapEntry | null;
-  coords: { x: number; y: number } | null;
-  tiles: Tile[];
-  palettes: Palette[];
-}) {
-  const { tileEntry, coords, tiles, palettes } = props;
+function CurrentTileContainer() {
+  const { tiles, palettes, currentTileEntry: tileEntry, currentTileCoords: coords } = useMapEditor();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const magnification = 8;
   const size = 8 * magnification;
@@ -228,43 +174,18 @@ function CurrentTileContainer(props: {
   );
 }
 
-function Sidebar(props: {
-  palettes: Palette[];
-  setPalettes: React.Dispatch<React.SetStateAction<Palette[]>>;
-  tiles: Tile[];
-  setTiles: React.Dispatch<React.SetStateAction<Tile[]>>;
-  currentTileEntry: TileMapEntry | null;
-  currentTileCoords: { x: number; y: number } | null;
-}) {
-  const {
-    palettes,
-    setPalettes,
-    tiles,
-    setTiles,
-    currentTileEntry,
-    currentTileCoords,
-  } = props;
-
+function Sidebar() {
   return (
     <div className="p-4">
-      <CurrentTileContainer
-        tileEntry={currentTileEntry}
-        coords={currentTileCoords}
-        tiles={tiles}
-        palettes={palettes}
-      />
-      <TilesContainer palettes={palettes} tiles={tiles} setTiles={setTiles} />
-      <PaletteContainer palettes={palettes} setPalettes={setPalettes} />
+      <CurrentTileContainer />
+      <TilesContainer />
+      <PaletteContainer />
     </div>
   );
 }
 
-function TilesContainer(props: {
-  palettes: Palette[];
-  tiles: Tile[];
-  setTiles: React.Dispatch<React.SetStateAction<Tile[]>>;
-}) {
-  const { palettes, setTiles, tiles } = props;
+function TilesContainer() {
+  const { palettes, tiles, setTiles } = useMapEditor();
   return (
     <div className="border-2 border-gray-300 p-4 rounded-md mb-4">
       <h2 className="text-l font-bold">Tiles</h2>
@@ -274,11 +195,8 @@ function TilesContainer(props: {
   );
 }
 
-function PaletteContainer(props: {
-  palettes: Palette[];
-  setPalettes: React.Dispatch<React.SetStateAction<Palette[]>>;
-}) {
-  const { palettes, setPalettes } = props;
+function PaletteContainer() {
+  const { palettes, setPalettes } = useMapEditor();
   return (
     <div className="border-2 border-gray-300 p-4 rounded-md mb-4">
       <h2 className="text-l font-bold">Palettes</h2>
