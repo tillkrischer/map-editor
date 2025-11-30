@@ -14,7 +14,7 @@ type TileMap = TileMapEntry[][]; // 32x32 entries
 export function App() {
   const [palettes, setPalettes] = useState<Palette[]>([]);
   const [tiles, setTiles] = useState<Tile[]>([]);
-  const [tileMap, setTileMap] = useState<TileMap>(
+  const [tileMap] = useState<TileMap>(
     new Array(32).fill(0).map(() =>
       new Array(32).fill({
         tileIndex: 1,
@@ -24,18 +24,34 @@ export function App() {
       }),
     ),
   );
+  const [currentTileCoords, setCurrentTileCoords] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const currentTileEntry =
+    currentTileCoords !== null
+      ? tileMap[currentTileCoords.y][currentTileCoords.x]
+      : null;
 
   return (
     <div className="w-screen h-screen flex divide-x divide-gray-200">
       <div className="flex-1 h-full">
-        <MainCanvas palettes={palettes} tiles={tiles} tileMap={tileMap} />
+        <MainCanvas
+          palettes={palettes}
+          tiles={tiles}
+          tileMap={tileMap}
+          onTileClick={setCurrentTileCoords}
+        />
       </div>
-      <div className="w-[550px] h-full">
+      <div className="w-[596px] h-full overflow-y-auto">
         <Sidebar
           palettes={palettes}
           setPalettes={setPalettes}
           tiles={tiles}
           setTiles={setTiles}
+          currentTileEntry={currentTileEntry}
+          currentTileCoords={currentTileCoords}
         />
       </div>
     </div>
@@ -46,8 +62,9 @@ function MainCanvas(props: {
   palettes: Palette[];
   tiles: Tile[];
   tileMap: TileMap;
+  onTileClick: (coords: { x: number; y: number }) => void;
 }) {
-  const { palettes, tiles, tileMap } = props;
+  const { palettes, tiles, tileMap, onTileClick } = props;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -55,13 +72,33 @@ function MainCanvas(props: {
     drawTileMap(canvasRef.current, palettes, tiles, tileMap);
   }, [palettes, tileMap, tiles]);
 
+  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Convert canvas coordinates to tile coordinates
+    // Each tile is 8x8 pixels with magnification of 2
+    const magnification = 2;
+    const tileX = Math.floor(x / (8 * magnification));
+    const tileY = Math.floor(y / (8 * magnification));
+
+    if (tileX >= 0 && tileX < 32 && tileY >= 0 && tileY < 32) {
+      onTileClick({ x: tileX, y: tileY });
+    }
+  };
+
   return (
     <div className="w-full flex justify-center pt-4">
       <canvas
         ref={canvasRef}
-        className="border-2 border-red-500"
+        className="border-2 border-red-500 cursor-pointer"
         height={512}
         width={512}
+        onClick={handleClick}
       />
     </div>
   );
@@ -107,20 +144,144 @@ function drawTileMap(
   }
 }
 
+function CurrentTileContainer(props: {
+  tileEntry: TileMapEntry | null;
+  coords: { x: number; y: number } | null;
+  tiles: Tile[];
+  palettes: Palette[];
+}) {
+  const { tileEntry, coords, tiles, palettes } = props;
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const magnification = 8;
+  const size = 8 * magnification;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    if (!tileEntry || coords === null) {
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+
+    const tile = tiles[tileEntry.tileIndex];
+    const palette = palettes[tileEntry.paletteIndex];
+
+    if (!tile || !palette) {
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+
+    // Draw the tile
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        const sx = tileEntry.horizontalFlip ? 7 - x : x;
+        const sy = tileEntry.verticalFlip ? 7 - y : y;
+        const colorIndex = tile[sy * 8 + sx];
+        const [r, g, b] = palette[colorIndex];
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        ctx.fillRect(
+          x * magnification,
+          y * magnification,
+          magnification,
+          magnification,
+        );
+      }
+    }
+  }, [tileEntry, tiles, palettes, coords]);
+
+  return (
+    <div className="border-2 border-gray-300 p-4 rounded-md mb-4">
+      <h2 className="text-l font-bold mb-2">Current Tile</h2>
+      <div className="flex flex-col gap-2">
+        <div className="text-sm">
+          <span className="font-medium">Position:</span> ({coords?.x}, {coords?.y}
+          )
+        </div>
+        <div className="text-sm">
+          <span className="font-medium">Tile Index:</span> {tileEntry?.tileIndex}
+        </div>
+        <div className="text-sm">
+          <span className="font-medium">Palette Index:</span>{" "}
+          {tileEntry?.paletteIndex}
+        </div>
+        <div className="text-sm">
+          <span className="font-medium">Horizontal Flip:</span>{" "}
+          {tileEntry?.horizontalFlip ? "Yes" : "No"}
+        </div>
+        <div className="text-sm">
+          <span className="font-medium">Vertical Flip:</span>{" "}
+          {tileEntry?.verticalFlip ? "Yes" : "No"}
+        </div>
+        <canvas
+          ref={canvasRef}
+          width={size}
+          height={size}
+          style={{width: size, height: size}}
+          className="border border-gray-400 mt-2"
+        />
+      </div>
+    </div>
+  );
+}
+
 function Sidebar(props: {
   palettes: Palette[];
   setPalettes: React.Dispatch<React.SetStateAction<Palette[]>>;
   tiles: Tile[];
   setTiles: React.Dispatch<React.SetStateAction<Tile[]>>;
+  currentTileEntry: TileMapEntry | null;
+  currentTileCoords: { x: number; y: number } | null;
 }) {
-  const { palettes, setPalettes, tiles, setTiles } = props;
+  const {
+    palettes,
+    setPalettes,
+    tiles,
+    setTiles,
+    currentTileEntry,
+    currentTileCoords,
+  } = props;
 
   return (
-    <div>
-      <h1 className="text-l font-bold">Tiles</h1>
+    <div className="p-4">
+      <CurrentTileContainer
+        tileEntry={currentTileEntry}
+        coords={currentTileCoords}
+        tiles={tiles}
+        palettes={palettes}
+      />
+      <TilesContainer palettes={palettes} tiles={tiles} setTiles={setTiles} />
+      <PaletteContainer palettes={palettes} setPalettes={setPalettes} />
+    </div>
+  );
+}
+
+function TilesContainer(props: {
+  palettes: Palette[];
+  tiles: Tile[];
+  setTiles: React.Dispatch<React.SetStateAction<Tile[]>>;
+}) {
+  const { palettes, setTiles, tiles } = props;
+  return (
+    <div className="border-2 border-gray-300 p-4 rounded-md mb-4">
+      <h2 className="text-l font-bold">Tiles</h2>
       <TilesUploadButton setTiles={setTiles} />
       <Tiles tiles={tiles} palettes={palettes} />
-      <h1 className="text-l font-bold">Palettes</h1>
+    </div>
+  );
+}
+
+function PaletteContainer(props: {
+  palettes: Palette[];
+  setPalettes: React.Dispatch<React.SetStateAction<Palette[]>>;
+}) {
+  const { palettes, setPalettes } = props;
+  return (
+    <div className="border-2 border-gray-300 p-4 rounded-md mb-4">
+      <h2 className="text-l font-bold">Palettes</h2>
       <PaletteUploadButton setPalettes={setPalettes} />
       <Palette palettes={palettes} />
     </div>
